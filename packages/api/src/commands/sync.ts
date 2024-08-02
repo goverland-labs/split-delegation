@@ -15,7 +15,6 @@ import config from '../../config.json'
 import prisma from '../../prisma/singleton'
 import spaceName from "../fns/spaceName";
 import rowToAction from "../fns/logs/rowToAction";
-import {DelegationAction} from "../fns/delegations/types";
 import {DelegationEvent} from "@prisma/client";
 
 import {ACTION_CLEAR, ACTION_EXPIRE, ACTION_OPT, ACTION_SET, DelegateEvent, sendToNats} from "../fns/queue/publisher";
@@ -112,9 +111,7 @@ async function _sync({
       await loadLogs({ contracts, fromBlock, toBlock, client })
     )
 
-      // 1	20419788
-      // 100	35229849
-    sendDataToNats(entities)
+    publishEvents(entities)
 
     const { count: writeCount } = await prisma.delegationEvent.createMany({
       data: entities,
@@ -142,26 +139,26 @@ async function _sync({
   return total
 }
 
-// fixme: test connection to nats
-function sendDataToNats(entities: DelegationEvent[]) {
+// publishEvents prepare events to core platform events and send it to the queue
+function publishEvents(entities: DelegationEvent[]) {
     let actions = rowToAction(entities)
 
-    let events: DelegateEvent[] = []
-    actions.forEach((action: DelegationAction, idx) => {
-        console.log("RAW ACTION: ", JSON.stringify(action))
+    let events: DelegateEvent[] = [];
+    for (const idx in actions) {
+        const action = actions[idx];
         if ('set' in action) {
-            action.set.delegation.forEach((delegation) => {
+            for (const j in action.set.delegation) {
                 events.push({
                     expired_at: action.set.expiration,
-                    weight: delegation.weight,
+                    weight: action.set.delegation[j].weight,
                     action: ACTION_SET,
                     address_from: entities[idx].account,
-                    address_to: delegation.delegate, // fixme: check it
+                    address_to: action.set.delegation[j].delegate,
                     block_number: entities[idx].blockNumber,
                     chain_id: entities[idx].chainId.toString(),
-                    original_space_id: spaceName(entities[idx].spaceId), // fixme: check it
+                    original_space_id: spaceName(entities[idx].spaceId),
                 })
-            })
+            }
         }
 
         if ('clear' in action) {
@@ -170,10 +167,10 @@ function sendDataToNats(entities: DelegationEvent[]) {
                 weight: 0,
                 action: ACTION_CLEAR,
                 address_from: entities[idx].account,
-                address_to: entities[idx].registry, // fixme: check it
+                address_to: entities[idx].registry,
                 block_number: entities[idx].blockNumber,
                 chain_id: entities[idx].chainId.toString(),
-                original_space_id: spaceName(entities[idx].spaceId), // fixme: check it
+                original_space_id: spaceName(entities[idx].spaceId),
             })
         }
 
@@ -183,10 +180,10 @@ function sendDataToNats(entities: DelegationEvent[]) {
                 weight: 0,
                 action: ACTION_OPT,
                 address_from: entities[idx].account,
-                address_to: entities[idx].registry, // fixme: check it
+                address_to: entities[idx].registry,
                 block_number: entities[idx].blockNumber,
                 chain_id: entities[idx].chainId.toString(),
-                original_space_id: spaceName(entities[idx].spaceId), // fixme: check it
+                original_space_id: spaceName(entities[idx].spaceId),
             })
         }
 
@@ -196,13 +193,13 @@ function sendDataToNats(entities: DelegationEvent[]) {
                 weight: 0,
                 action: ACTION_EXPIRE,
                 address_from: entities[idx].account,
-                address_to: entities[idx].registry, // fixme: check it
+                address_to: entities[idx].registry,
                 block_number: entities[idx].blockNumber,
                 chain_id: entities[idx].chainId.toString(),
-                original_space_id: spaceName(entities[idx].spaceId), // fixme: check it
+                original_space_id: spaceName(entities[idx].spaceId),
             })
         }
-    })
+    }
 
     sendToNats(events)
 }

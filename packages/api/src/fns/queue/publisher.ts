@@ -16,17 +16,24 @@ export type DelegateEvent = {
     block_number: number;
 }
 
+// todo: how to reconnect on error
+// todo: move server and subject to config
 export function sendToNats(events: DelegateEvent[]) {
+    if (events.length == 0) {
+        return
+    }
+
     console.info(
         `Sending ${events.length} evens to nats subject...`
     )
 
-    console.log("publish...", events)
-
     const subject = "core.delegate.upsert";
-    const nc = connect({servers: "127.0.0.1:4222"});
+    connect({servers: "127.0.0.1:4222"})
+        .then(nc => {
+            for (const event of events) {
+                nc.publish(subject, JSON.stringify(event))
+            }
 
-    // fixme: send json only
-    events.forEach(event => nc.publish(subject, event));
-    nc.drain();
+            nc.drain().finally(() => console.log("nats connection was closed"))
+        })
 }
