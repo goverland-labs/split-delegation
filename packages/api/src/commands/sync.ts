@@ -13,6 +13,12 @@ import resolveBlockTag from '../loaders/resolveBlockTag'
 
 import config from '../../config.json'
 import prisma from '../../prisma/singleton'
+import spaceName from "../fns/spaceName";
+import rowToAction from "../fns/logs/rowToAction";
+import {DelegationAction} from "../fns/delegations/types";
+import {DelegationEvent} from "@prisma/client";
+
+import {ACTION_CLEAR, ACTION_EXPIRE, ACTION_OPT, ACTION_SET, DelegateEvent, sendToNats} from "../fns/queue/publisher";
 
 const chains = [mainnet, gnosis]
 
@@ -106,6 +112,10 @@ async function _sync({
       await loadLogs({ contracts, fromBlock, toBlock, client })
     )
 
+      // 1	20419788
+      // 100	35229849
+    sendDataToNats(entities)
+
     const { count: writeCount } = await prisma.delegationEvent.createMany({
       data: entities,
       skipDuplicates: true,
@@ -130,6 +140,71 @@ async function _sync({
     })
   }
   return total
+}
+
+// fixme: test connection to nats
+function sendDataToNats(entities: DelegationEvent[]) {
+    let actions = rowToAction(entities)
+
+    let events: DelegateEvent[] = []
+    actions.forEach((action: DelegationAction, idx) => {
+        console.log("RAW ACTION: ", JSON.stringify(action))
+        if ('set' in action) {
+            action.set.delegation.forEach((delegation) => {
+                events.push({
+                    expired_at: action.set.expiration,
+                    weight: delegation.weight,
+                    action: ACTION_SET,
+                    address_from: entities[idx].account,
+                    address_to: delegation.delegate, // fixme: check it
+                    block_number: entities[idx].blockNumber,
+                    chain_id: entities[idx].chainId.toString(),
+                    original_space_id: spaceName(entities[idx].spaceId), // fixme: check it
+                })
+            })
+        }
+
+        if ('clear' in action) {
+            events.push({
+                expired_at: 0,
+                weight: 0,
+                action: ACTION_CLEAR,
+                address_from: entities[idx].account,
+                address_to: entities[idx].registry, // fixme: check it
+                block_number: entities[idx].blockNumber,
+                chain_id: entities[idx].chainId.toString(),
+                original_space_id: spaceName(entities[idx].spaceId), // fixme: check it
+            })
+        }
+
+        if ('opt' in action) {
+            events.push({
+                expired_at: 0,
+                weight: 0,
+                action: ACTION_OPT,
+                address_from: entities[idx].account,
+                address_to: entities[idx].registry, // fixme: check it
+                block_number: entities[idx].blockNumber,
+                chain_id: entities[idx].chainId.toString(),
+                original_space_id: spaceName(entities[idx].spaceId), // fixme: check it
+            })
+        }
+
+        if ('expire' in action) {
+            events.push({
+                expired_at: action.expire.expiration,
+                weight: 0,
+                action: ACTION_EXPIRE,
+                address_from: entities[idx].account,
+                address_to: entities[idx].registry, // fixme: check it
+                block_number: entities[idx].blockNumber,
+                chain_id: entities[idx].chainId.toString(),
+                original_space_id: spaceName(entities[idx].spaceId), // fixme: check it
+            })
+        }
+    })
+
+    sendToNats(events)
 }
 
 async function blockRange(
