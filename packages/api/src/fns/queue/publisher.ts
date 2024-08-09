@@ -27,8 +27,8 @@ export function sendToNats(events: DelegateEvent[]) {
         `Sending ${events.length} evens to nats subject...`
     )
 
-    const subject = "core.delegate.upsert";
-    connect({servers: "127.0.0.1:4222"})
+    const subject = process.env.NATS_SUBJECT || "core.delegate.upsert";
+    connect({servers: process.env.NATS_CONNECT || "127.0.0.1:4222"})
         .then(nc => {
             for (const event of events) {
                 nc.publish(subject, JSON.stringify(event))
