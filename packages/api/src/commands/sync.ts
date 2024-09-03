@@ -155,6 +155,7 @@ function publishEvents(entities: DelegationEvent[]) {
                     address_from: entities[idx].account,
                     address_to: action.set.delegation[j].delegate,
                     block_number: entities[idx].blockNumber,
+                    block_timestamp: entities[idx].blockTimestamp,
                     chain_id: entities[idx].chainId.toString(),
                     original_space_id: spaceName(entities[idx].spaceId),
                 })
@@ -169,6 +170,7 @@ function publishEvents(entities: DelegationEvent[]) {
                 address_from: entities[idx].account,
                 address_to: entities[idx].registry,
                 block_number: entities[idx].blockNumber,
+                block_timestamp: entities[idx].blockTimestamp,
                 chain_id: entities[idx].chainId.toString(),
                 original_space_id: spaceName(entities[idx].spaceId),
             })
@@ -182,6 +184,7 @@ function publishEvents(entities: DelegationEvent[]) {
                 address_from: entities[idx].account,
                 address_to: entities[idx].registry,
                 block_number: entities[idx].blockNumber,
+                block_timestamp: entities[idx].blockTimestamp,
                 chain_id: entities[idx].chainId.toString(),
                 original_space_id: spaceName(entities[idx].spaceId),
             })
@@ -195,6 +198,7 @@ function publishEvents(entities: DelegationEvent[]) {
                 address_from: entities[idx].account,
                 address_to: entities[idx].registry,
                 block_number: entities[idx].blockNumber,
+                block_timestamp: entities[idx].blockTimestamp,
                 chain_id: entities[idx].chainId.toString(),
                 original_space_id: spaceName(entities[idx].spaceId),
             })

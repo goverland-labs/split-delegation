@@ -14,6 +14,7 @@ export type DelegateEvent = {
     expired_at: number;
     weight: number;
     block_number: number;
+    block_timestamp: number;
 }
 
 // todo: how to reconnect on error
