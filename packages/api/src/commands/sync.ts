@@ -17,7 +17,14 @@ import spaceName from "../fns/spaceName";
 import rowToAction from "../fns/logs/rowToAction";
 import {DelegationEvent} from "@prisma/client";
 
-import {ACTION_CLEAR, ACTION_EXPIRE, ACTION_OPT, ACTION_SET, DelegateEvent, sendToNats} from "../fns/queue/publisher";
+import {
+    ACTION_CLEAR,
+    ACTION_EXPIRE,
+    ACTION_SET,
+    DelegateEvent,
+    DelegationDetails, Delegations,
+    sendToNats
+} from "../fns/queue/publisher";
 
 const chains = [mainnet, gnosis]
 
@@ -146,61 +153,58 @@ function publishEvents(entities: DelegationEvent[]) {
     let events: DelegateEvent[] = [];
     for (const idx in actions) {
         const action = actions[idx];
+
         if ('set' in action) {
+            let dd: Delegations = {
+                expiration: action.set.expiration,
+                details: [],
+            };
+
             for (const j in action.set.delegation) {
-                events.push({
-                    expired_at: action.set.expiration,
+                dd.details.push({
                     weight: action.set.delegation[j].weight,
-                    action: ACTION_SET,
-                    address_from: entities[idx].account,
-                    address_to: action.set.delegation[j].delegate,
-                    block_number: entities[idx].blockNumber,
-                    block_timestamp: entities[idx].blockTimestamp,
-                    chain_id: entities[idx].chainId.toString(),
-                    original_space_id: spaceName(entities[idx].spaceId),
+                    address: action.set.delegation[j].delegate,
                 })
             }
+
+            events.push({
+                action: ACTION_SET,
+                address_from: entities[idx].account,
+                block_number: entities[idx].blockNumber,
+                block_timestamp: entities[idx].blockTimestamp,
+                chain_id: entities[idx].chainId.toString(),
+                original_space_id: spaceName(entities[idx].spaceId),
+                delegations: dd,
+            })
         }
 
         if ('clear' in action) {
             events.push({
-                expired_at: 0,
-                weight: 0,
                 action: ACTION_CLEAR,
                 address_from: entities[idx].account,
-                address_to: entities[idx].registry,
                 block_number: entities[idx].blockNumber,
                 block_timestamp: entities[idx].blockTimestamp,
                 chain_id: entities[idx].chainId.toString(),
                 original_space_id: spaceName(entities[idx].spaceId),
-            })
-        }
-
-        if ('opt' in action) {
-            events.push({
-                expired_at: 0,
-                weight: 0,
-                action: ACTION_OPT,
-                address_from: entities[idx].account,
-                address_to: entities[idx].registry,
-                block_number: entities[idx].blockNumber,
-                block_timestamp: entities[idx].blockTimestamp,
-                chain_id: entities[idx].chainId.toString(),
-                original_space_id: spaceName(entities[idx].spaceId),
+                delegations: {
+                    details: [],
+                    expiration: 0,
+                },
             })
         }
 
         if ('expire' in action) {
             events.push({
-                expired_at: action.expire.expiration,
-                weight: 0,
                 action: ACTION_EXPIRE,
                 address_from: entities[idx].account,
-                address_to: entities[idx].registry,
                 block_number: entities[idx].blockNumber,
                 block_timestamp: entities[idx].blockTimestamp,
                 chain_id: entities[idx].chainId.toString(),
                 original_space_id: spaceName(entities[idx].spaceId),
+                delegations: {
+                    details: [],
+                    expiration: action.expire.expiration,
+                },
             })
         }
     }

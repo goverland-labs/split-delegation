@@ -3,22 +3,28 @@ import {connect} from "nats";
 export const ACTION_SET = "set";
 export const ACTION_CLEAR = "clear";
 export const ACTION_EXPIRE = "expire";
-export const ACTION_OPT = "opt";
+
+export type DelegationDetails = {
+    address: string;
+    weight: number;
+}
+
+export type Delegations = {
+    details: DelegationDetails[];
+    expiration: number;
+}
 
 export type DelegateEvent = {
     action: string;
     address_from: string;
-    address_to: string;
-    chain_id: string;
     original_space_id: string;
-    expired_at: number;
-    weight: number;
+    chain_id: string;
     block_number: number;
     block_timestamp: number;
+    delegations: Delegations;
 }
 
 // todo: how to reconnect on error
-// todo: move server and subject to config
 export function sendToNats(events: DelegateEvent[]) {
     if (events.length == 0) {
         return
