@@ -1,10 +1,10 @@
 {
   "1": {
     "network": "mainnet",
-    "startBlock": 20000000
+    "startBlock": 11225329
   },
   "100": {
     "network": "gnosis",
-    "startBlock": 35662824
+    "startBlock": 20274491
   }
 }
