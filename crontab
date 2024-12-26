@@ -1,4 +1,4 @@
 # do daily/weekly/monthly maintenance
 # min  hour  day  month  weekday  command
-*/15    *     *    *      *        npx ts-node packages/api/src/commands/index.ts sync >> /var/log/cron.log 2>&1
+*/5    *     *    *      *        npx ts-node /app/packages/api/src/commands/index.ts sync >> /var/log/cron.log 2>&1
 # Don't remove the empty line at the end of this file. It is required to run the cron job
