@@ -29,7 +29,8 @@ export type DelegateEvent = {
 
 // todo: how to reconnect on error
 export function sendToNats(events: DelegateEvent[]) {
-    if (events.length == 0) {
+    const available = (process.env.NATS_AVAILABLE ?? "true").toLowerCase() === "true";
+    if (events.length === 0 || !available) {
         return
     }
 

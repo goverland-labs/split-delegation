@@ -1,102 +1,57 @@
-import express, {Request as ExpressRequest, Response as ExpressResponse} from 'express'
-import {readdirSync} from 'fs'
-import {extname, join} from 'path'
+import express from 'express'
+import bodyParser from 'body-parser'
+import cors from 'cors'
+import helmet from 'helmet'
 
-class SimpleRequest {
-    url: string
-    method: string
-    headers: Headers
-    body: any
+import {POST as addressPOST} from './api/v1/[space]/[tag]/[address]'
+import {POST as topDelegatesPOST} from './api/v1/[space]/[tag]/top-delegates'
+import {POST as votingPowerPOST} from './api/v1/[space]/[tag]/voting-power'
 
-    constructor(url: string, method: string, headers: any, body: any) {
-        this.url = url
-        this.method = method
-        this.headers = new Headers()
-        Object.entries(headers).forEach(([k, v]) => {
-            if (typeof v === 'string') this.headers.set(k, v)
-        })
-        this.body = body
-    }
-
-    async json() {
-        return this.body
-    }
-
-    async text() {
-        if (typeof this.body === 'string') return this.body
-        return JSON.stringify(this.body)
-    }
-}
-
+const {Request} = global
 
 const app = express()
-app.use(express.json())
+app.use(cors())
+app.use(helmet())
+app.use(bodyParser.json())
 
-function loadRoutesFrom(dir: string, baseRoute = '/api') {
-    const entries = readdirSync(dir, {withFileTypes: true})
+function toFetchRequest(req: express.Request, queryParams: Record<string, string> = {}) {
+    const baseUrl = `${req.protocol}://${req.get('host')}`
+    const url = new URL(req.originalUrl, baseUrl)
 
-    // Файлы без [param] — фиксированные роуты
-    const fixedFiles = entries.filter(e => e.isFile() && !e.name.includes('['))
-    // Файлы с [param] — динамические
-    const paramFiles = entries.filter(e => e.isFile() && e.name.includes('['))
-    // Поддиректории
-    const dirs = entries.filter(e => e.isDirectory())
-
-    for (const file of fixedFiles) {
-        registerRoute(join(dir, file.name), `${baseRoute}/${file.name}`)
-    }
-    for (const file of paramFiles) {
-        registerRoute(join(dir, file.name), `${baseRoute}/${file.name}`)
-    }
-    for (const d of dirs) {
-        loadRoutesFrom(join(dir, d.name), `${baseRoute}/${d.name}`)
-    }
-}
-
-function registerRoute(fullPath: string, routePath: string) {
-    if (!['.ts', '.js'].includes(extname(fullPath))) return
-
-    const handlerModule = require(fullPath)
-    const handler = handlerModule.POST || handlerModule.default
-
-    if (typeof handler !== 'function') {
-        console.warn(`[warn] No POST export (handler function) in ${fullPath}`)
-        return
+    for (const [key, value] of Object.entries(queryParams)) {
+        url.searchParams.set(key, value)
     }
 
-    const expressRoute = routePath
-        .replace(/\.(ts|js)$/, '')
-        .replace(/\[([^\]]+)\]/g, ':$1')
-
-    app.post(expressRoute, async (req: ExpressRequest, res: ExpressResponse) => {
-        try {
-            const fullUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`
-            const apiReq = new SimpleRequest(fullUrl, req.method, req.headers, req.body)
-
-            const apiRes = await handler(apiReq)
-
-            // Обработка стандартного Response
-            if (apiRes instanceof Response || ('status' in apiRes && 'headers' in apiRes)) {
-                const status = apiRes.status ?? 200
-                apiRes.headers.forEach((value: string, key: string) => {
-                    res.setHeader(key, value)
-                })
-                const body = await apiRes.text()
-                res.status(status).send(body)
-            } else {
-                // Если возвращен простой объект — отдаём json
-                res.json(apiRes)
-            }
-        } catch (err: any) {
-            console.error('API handler error:', err)
-            res.status(500).json({error: err.message || String(err)})
-        }
+    return new Request(url.toString(), {
+        method: req.method,
+        headers: req.headers as Record<string, string>,
+        body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body),
     })
-
-    console.log(`✅ Loaded route: ${expressRoute}`)
 }
 
-loadRoutesFrom(join(__dirname, 'api'))
+async function handle(req: express.Request, res: express.Response, handler: (req: Request) => Promise<Response>, queryParams: Record<string, string>) {
+    try {
+        const request = toFetchRequest(req, queryParams)
+        const response = await handler(request)
+        const data = await response.json()
+        res.status(response.status).json(data)
+    } catch (err: any) {
+        console.error('Error:', err)
+        res.status(500).json({error: 'Internal Server Error', details: err.message})
+    }
+}
+
+app.all('/api/v1/:space/:tag/top-delegates', (req, res) =>
+    handle(req, res, topDelegatesPOST, req.params)
+)
+
+app.all('/api/v1/:space/:tag/voting-power', (req, res) =>
+    handle(req, res, votingPowerPOST, req.params)
+)
+
+app.all('/api/v1/:space/:tag/:address', (req, res) =>
+    handle(req, res, addressPOST, req.params)
+)
 
 const port = process.env.PORT ? Number(process.env.PORT) : 3000
 const host = '0.0.0.0'
