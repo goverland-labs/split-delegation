@@ -57,7 +57,7 @@ async function run() {
                 url: chain.gateway,
                 requestTimeout: 120_000
             })
-            .setPrometheusPort(3000 + i)
+            .setPrometheusPort(i + (parseInt(process.env.PROMETHEUS_PORT ?? '') || 3000))
             .setRpcEndpoint({
                 url: chain.rpc,
                 requestTimeout: 120_000,
